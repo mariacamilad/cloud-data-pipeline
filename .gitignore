@@ -10,3 +10,5 @@ output/
 *.parquet
 # Jupyter
 .ipynb_checkpoints/
+# Google
+credentials.json
