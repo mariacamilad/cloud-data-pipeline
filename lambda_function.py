@@ -36,6 +36,7 @@ def lambda_handler(event, context):
             password=os.environ.get('DB_PASSWORD')
         )
         cur = conn.cursor()
+        cur.execute("DELETE FROM datos_externos;")
 
         # 4. Transformation and Load (Idempotent & Parameterized)
         INSERT_SQL = """
