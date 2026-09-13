@@ -12,3 +12,5 @@ output/
 .ipynb_checkpoints/
 # Google
 credentials.json
+# AWS key pairs
+*.pem

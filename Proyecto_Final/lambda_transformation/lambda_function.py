@@ -2,6 +2,7 @@ import os
 import json
 import boto3
 import pandas as pd
+import pg8000.dbapi
 
 from botocore.exceptions import ClientError
 
@@ -215,6 +216,65 @@ def lambda_handler(event, context):
         f"Archivo cargado en: "
         f"s3://{BUCKET_NAME}/{TARGET_KEY}"
     )
+    
+    # ============================================================
+    # CARGA A AMAZON RDS POSTGRESQL
+    # ============================================================
+
+    conn = pg8000.dbapi.connect(
+        host=os.getenv("DB_HOST"),
+        database=os.getenv("DB_NAME"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+        port=5432,
+        timeout=10
+    )
+
+    cur = conn.cursor()
+
+    UPSERT_SQL = """
+    INSERT INTO datos_externos
+    (
+        fsq_place_id,
+        name,
+        address,
+        categories,
+        latitude,
+        longitude,
+        distance
+    )
+    VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s)
+
+    ON CONFLICT (fsq_place_id)
+    DO UPDATE SET
+        name = EXCLUDED.name,
+        address = EXCLUDED.address,
+        categories = EXCLUDED.categories,
+        latitude = EXCLUDED.latitude,
+        longitude = EXCLUDED.longitude,
+        distance = EXCLUDED.distance;
+    """
+
+    for _, row in df_clean.iterrows():
+        cur.execute(
+            UPSERT_SQL,
+            (
+                str(row["fsq_place_id"]),
+                str(row["name"]),
+                None if pd.isna(row["address"]) else str(row["address"]),
+                json.dumps(row["categories"], ensure_ascii=False),
+                float(row["latitude"]),
+                float(row["longitude"]),
+                int(row["distance"])
+            )
+        )
+
+    conn.commit()
+
+    cur.close()
+    conn.close()
+
+    print(f"RDS load completed: {len(df_clean)} records processed")
 
     # ========================================================
     # 10. RESPUESTA DE LAMBDA
